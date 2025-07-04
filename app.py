@@ -1,42 +1,29 @@
 # -*- coding: utf-8 -*-
 """
-Sistema Web Avançado para Formatar e Criar Nomes de Pastas.
+Sistema Web Avançado para Formatar Nomes de Pastas.
 
-Versão 6.0:
-- Refatorada a lógica de criação de pastas para ser mais robusta e fornecer feedback detalhado.
-- Adicionada verificação de permissão de escrita mais fiável, baseada na tentativa de criação.
-- Adicionado feedback em tempo real durante a criação das pastas.
-- Corrigida a validação do caminho do diretório para remover automaticamente
-  aspas e espaços extra.
-- Implementada a criação de subpastas por mês (ex: 06-Junho, 07-Julho).
+Versão 6.1 (Versão Web):
+- Removida toda a funcionalidade de criação de pastas locais para garantir a
+  compatibilidade com o Streamlit Community Cloud.
+- A aplicação foca-se na geração da lista de nomes e no download do ficheiro .txt.
 - Implementado o mapeamento automático e inteligente de colunas.
+- Adicionada sugestão de modelos com separadores (_ e -).
+- Implementada ordenação automática dos dados por data crescente antes da geração.
 
 Como executar:
 1. Salve este ficheiro como `app.py`.
-2. Instale as bibliotecas necessárias:
-   pip install streamlit pandas openpyxl
+2. Crie um ficheiro `requirements.txt` com o seguinte conteúdo:
+   streamlit
+   pandas
+   openpyxl
 3. No terminal, execute o comando:
    streamlit run app.py
 """
 import streamlit as st
 import pandas as pd
-import os
 import re
 
 # --- Funções de Lógica ---
-
-def is_windows_abs_path(path):
-    """
-    Valida de forma mais robusta se um caminho é absoluto no Windows,
-    verificando por letras de unidade (C:\) ou caminhos de rede UNC (\\servidor).
-    Esta função é mais fiável em ambientes de servidor.
-    """
-    path = path.strip('"') # Remove aspas que podem vir do 'copiar como caminho'
-    if re.match(r'^[a-zA-Z]:[\\/]', path):
-        return True
-    if path.startswith('\\\\'):
-        return True
-    return False
 
 def guess_mappings(columns):
     """
@@ -70,10 +57,9 @@ def guess_mappings(columns):
 
 def processar_dados(df, mapeamento, template):
     """
-    Processa o DataFrame para gerar os nomes das pastas e retorna uma lista de tuplos
-    contendo (nome_final, objeto_datetime_inicio).
+    Processa o DataFrame para gerar os nomes das pastas e retorna uma lista de nomes.
     """
-    items_gerados = []
+    nomes_gerados = []
     erros = []
 
     for index, row in df.iterrows():
@@ -82,7 +68,6 @@ def processar_dados(df, mapeamento, template):
                 'DATA': '', 'HORA_INICIO': '', 'HORA_FIM': '',
                 'CONDUTOR': '', 'CPF': '', 'MAQUINA': ''
             }
-            dt_inicio_obj = None
 
             if mapeamento['data_inicio'] != "N/A":
                 dt_inicio_obj = pd.to_datetime(row[mapeamento['data_inicio']], dayfirst=True)
@@ -107,23 +92,23 @@ def processar_dados(df, mapeamento, template):
             nome_final = re.sub(r'[-]+', '-', nome_final)
             nome_final = nome_final.strip('_- ')
             
-            items_gerados.append((nome_final, dt_inicio_obj))
+            nomes_gerados.append(nome_final)
 
         except Exception as e:
             erros.append(f"Erro na linha {index + 2} da planilha: {e}")
 
-    return items_gerados, erros
+    return nomes_gerados, erros
 
 # --- Configuração da Página ---
 st.set_page_config(
-    page_title="Criador de Pastas a partir de Planilha",
-    page_icon="📂",
+    page_title="Gerador de Nomes a partir de Planilha",
+    page_icon="📄",
     layout="wide"
 )
 
 # --- Interface do Usuário ---
-st.title("⚙️ Criador de Pastas a partir de Planilha")
-st.markdown("Uma ferramenta flexível para gerar nomes de pastas e criá-las diretamente no seu computador.")
+st.title("⚙️ Gerador de Nomes a partir de Planilha")
+st.markdown("Uma ferramenta para converter os dados da sua planilha em nomes formatados.")
 
 st.header("Passo 1: Envie sua Planilha")
 uploaded_file = st.file_uploader(
@@ -164,7 +149,7 @@ if uploaded_file:
                 mapeamento['maquina'] = st.selectbox("Coluna para Máquina/Equipamento", colunas_disponiveis, index=get_col_index('maquina'), key='map_m')
         
         with col2:
-            with st.expander("Modelo do Nome da Pasta", expanded=True):
+            with st.expander("Modelo do Nome", expanded=True):
                 st.info("Escolha uma sugestão ou edite o modelo livremente usando as variáveis abaixo.")
                 st.code("{DATA} {HORA_INICIO} {HORA_FIM} {CONDUTOR} {CPF} {MAQUINA}")
                 sugestoes = {
@@ -177,109 +162,34 @@ if uploaded_file:
                 sugestao_selecionada = st.selectbox("Sugestões de Modelo:", list(sugestoes.keys()))
                 template_usuario = st.text_input("Edite seu modelo aqui:", value=sugestoes[sugestao_selecionada])
 
-        st.header("Passo 3: Gerar e Criar Pastas")
+        st.header("Passo 3: Gerar Lista de Nomes")
 
-        if st.button("▶️ Gerar Nomes das Pastas"):
+        if st.button("▶️ Gerar Nomes"):
             if mapeamento['data_inicio'] != 'N/A':
                 try:
                     df_ordenado = df.sort_values(by=mapeamento['data_inicio']).copy()
                     st.info("Os dados foram ordenados pela data de início em ordem crescente.")
-                    items_gerados, erros = processar_dados(df_ordenado, mapeamento, template_usuario)
+                    nomes_gerados, erros = processar_dados(df_ordenado, mapeamento, template_usuario)
                 except Exception as e:
                     st.error(f"Erro ao tentar ordenar pela coluna de data: {e}")
-                    items_gerados, erros = [], []
+                    nomes_gerados, erros = [], []
             else:
                 st.warning("A coluna de Data de Início não foi selecionada. Os dados não serão ordenados.")
-                items_gerados, erros = processar_dados(df, mapeamento, template_usuario)
+                nomes_gerados, erros = processar_dados(df, mapeamento, template_usuario)
             
             if erros:
                 st.warning("Ocorreram alguns erros durante o processamento:")
                 st.json(erros)
             
-            if items_gerados:
-                st.session_state['items_gerados'] = items_gerados
-                nomes_para_exibir = [item[0] for item in items_gerados]
-                st.text_area("Nomes gerados (em ordem cronológica):", "\n".join(nomes_para_exibir), height=250)
-                st.download_button("📥 Baixar Lista de Nomes (.txt)", "\n".join(nomes_para_exibir), "nomes_de_pastas.txt", "text/plain")
-
-        if 'items_gerados' in st.session_state and st.session_state['items_gerados']:
-            st.markdown("---")
-            st.subheader("Opcional: Criar Pastas no seu Computador")
-            st.info("As pastas serão criadas dentro de subpastas com o nome do mês (ex: 06-Junho, 07-Julho).")
-            
-            with st.expander("Como selecionar o diretório de destino?", expanded=True):
-                st.markdown("""
-                1. No seu computador, abra o **Explorador de Ficheiros** e navegue até à pasta onde quer salvar.
-                2. Clique na barra de endereço na parte de cima da janela.
-                3. O caminho completo será selecionado (ex: `C:\\Utilizadores\\SeuNome\\Documentos`).
-                4. Copie o caminho (**Ctrl+C**).
-                5. Cole o caminho no campo abaixo (**Ctrl+V**).
-                """)
-            
-            caminho_diretorio = st.text_input("Cole aqui o caminho completo do diretório de destino:")
-            
-            if caminho_diretorio:
-                caminho_limpo = caminho_diretorio.strip().strip('"').strip("'")
-                
-                st.success(f"Diretório de destino definido: `{caminho_limpo}`")
-                if st.button("🚀 Criar Pastas no Diretório Definido"):
-                    # Placeholder para o feedback em tempo real
-                    feedback_placeholder = st.empty()
-                    
-                    try:
-                        if not is_windows_abs_path(caminho_limpo):
-                             feedback_placeholder.error("O caminho fornecido não parece ser um caminho absoluto válido para Windows. Verifique se começa com uma letra de unidade (ex: C:\\) ou é um caminho de rede (ex: \\\\servidor\\pasta).")
-                        else:
-                            # Tenta criar o diretório base para verificar as permissões
-                            feedback_placeholder.info(f"A verificar permissões e a criar o diretório base `{caminho_limpo}` se não existir...")
-                            os.makedirs(caminho_limpo, exist_ok=True)
-                            
-                            meses = {
-                                1: "01-Janeiro", 2: "02-Fevereiro", 3: "03-Março", 4: "04-Abril",
-                                5: "05-Maio", 6: "06-Junho", 7: "07-Julho", 8: "08-Agosto",
-                                9: "09-Setembro", 10: "10-Outubro", 11: "11-Novembro", 12: "12-Dezembro"
-                            }
-                            pastas_criadas = 0
-                            erros_criacao = []
-                            
-                            # Área para mostrar o log de criação
-                            log_area = st.container()
-                            log_area.write("**Log de Criação:**")
-
-                            for nome_pasta, data_inicio_obj in st.session_state['items_gerados']:
-                                try:
-                                    if data_inicio_obj is None:
-                                        erros_criacao.append(f"Ignorado '{nome_pasta}': Data de início não fornecida.")
-                                        continue
-                                    
-                                    mes_numero = data_inicio_obj.month
-                                    nome_mes = meses.get(mes_numero, "Mes_Desconhecido")
-                                    diretorio_mes = os.path.join(caminho_limpo, nome_mes)
-                                    
-                                    nome_pasta_sanitizado = re.sub(r'[<>:"/\\|?*]', '', nome_pasta)
-                                    caminho_completo = os.path.join(diretorio_mes, nome_pasta_sanitizado)
-                                    
-                                    os.makedirs(caminho_completo, exist_ok=True)
-                                    log_area.write(f"✔️ Criada: `{caminho_completo}`")
-                                    pastas_criadas += 1
-                                except PermissionError:
-                                    erros_criacao.append(f"Falha ao criar '{caminho_completo}': Erro de Permissão.")
-                                    # Para o processo se encontrar um erro de permissão
-                                    raise 
-                                except Exception as e:
-                                    erros_criacao.append(f"Falha ao criar '{nome_pasta}': {e}")
-                            
-                            feedback_placeholder.success(f"Operação concluída! {pastas_criadas} pastas foram criadas/verificadas com sucesso.")
-                            if erros_criacao:
-                                st.warning("Alguns itens foram ignorados ou falharam durante a criação:")
-                                st.json(erros_criacao)
-
-                    except PermissionError:
-                        feedback_placeholder.error(f"**Erro de Permissão!** O script não tem permissão para criar pastas no diretório '{caminho_limpo}'. Por favor, verifique as permissões da pasta para o utilizador que está a executar o script, ou tente executar como administrador.")
-                    except FileNotFoundError:
-                        feedback_placeholder.error(f"**Caminho não encontrado!** O diretório base '{caminho_limpo}' não existe ou não é acessível. Por favor, verifique se o caminho está correto.")
-                    except Exception as e:
-                        feedback_placeholder.error(f"Ocorreu um erro inesperado: {e}")
+            if nomes_gerados:
+                st.session_state['nomes_gerados'] = nomes_gerados
+                st.text_area("Nomes gerados (em ordem cronológica):", "\n".join(nomes_gerados), height=300)
+                st.download_button(
+                    label="📥 Baixar Lista de Nomes (.txt)",
+                    data="\n".join(nomes_gerados),
+                    file_name="nomes_formatados.txt",
+                    mime="text/plain"
+                )
 
     except Exception as e:
         st.error(f"Ocorreu um erro ao ler o arquivo Excel: {e}. Verifique se o arquivo não está corrompido.")
