@@ -2,20 +2,19 @@
 """
 Sistema Web Avançado para Formatar e Criar Nomes de Pastas.
 
-Versão 5.1:
-- Corrigida a lógica de mapeamento automático para ser mais robusta, removendo espaços
-  em branco dos nomes das colunas.
+Versão 5.2:
+- Adicionado um navegador de ficheiros visual para selecionar o diretório de destino,
+  substituindo o campo de texto manual.
+- Corrigida e melhorada a lógica de criação de pastas para maior fiabilidade.
 - Implementada a criação de subpastas por mês (ex: 06-Junho, 07-Julho) no diretório de destino.
 - Implementado o mapeamento automático e inteligente de colunas.
 - Adicionada sugestão de modelos com separadores (_ e -).
 - Implementada ordenação automática dos dados por data crescente antes da geração.
-- Adicionada verificação e criação do diretório base (pai) caso ele não exista.
-- Interface do usuário totalmente traduzida para o português brasileiro.
 
 Como executar:
-1. Salve este arquivo como `app.py`.
-2. Instale as bibliotecas necessárias:
-   pip install streamlit pandas openpyxl
+1. Salve este ficheiro como `app.py`.
+2. Instale as bibliotecas necessárias (incluindo o novo navegador de ficheiros):
+   pip install streamlit pandas openpyxl streamlit-folder-browser
 3. No terminal, execute o comando:
    streamlit run app.py
 """
@@ -23,6 +22,7 @@ import streamlit as st
 import pandas as pd
 import os
 import re
+from st_folder_browser import st_folder_browser # Importa o novo componente
 
 # --- Funções de Lógica ---
 
@@ -123,7 +123,6 @@ uploaded_file = st.file_uploader(
 if uploaded_file:
     try:
         df = pd.read_excel(uploaded_file, engine='openpyxl')
-        # **CORREÇÃO**: Remove espaços em branco dos nomes das colunas
         df.columns = [str(col).strip() for col in df.columns]
         
         st.success("Planilha carregada com sucesso!")
@@ -196,14 +195,13 @@ if uploaded_file:
             st.subheader("Opcional: Criar Pastas no seu Computador")
             st.info("As pastas serão criadas dentro de subpastas com o nome do mês (ex: 06-Junho, 07-Julho).")
             
-            caminho_diretorio = st.text_input("Cole aqui o caminho completo do diretório onde as pastas devem ser criadas (ex: C:\\Usuários\\SeuUsuario\\Documentos\\Relatorios)")
-
-            if st.button("🚀 Criar Pastas no Diretório Acima"):
-                if caminho_diretorio:
+            # **NOVA FUNCIONALIDADE**: Navegador de ficheiros visual
+            caminho_diretorio = st_folder_browser("Selecione o diretório de destino")
+            
+            if caminho_diretorio:
+                st.success(f"Diretório selecionado: `{caminho_diretorio}`")
+                if st.button("🚀 Criar Pastas no Diretório Selecionado"):
                     try:
-                        if not os.path.isdir(caminho_diretorio):
-                            st.info(f"O diretório base '{caminho_diretorio}' não existe e será criado.")
-                        
                         meses = {
                             1: "01-Janeiro", 2: "02-Fevereiro", 3: "03-Março", 4: "04-Abril",
                             5: "05-Maio", 6: "06-Junho", 7: "07-Julho", 8: "08-Agosto",
@@ -235,8 +233,9 @@ if uploaded_file:
                             st.json(erros_criacao)
                     except Exception as e:
                         st.error(f"Erro ao processar o caminho do diretório: {e}")
-                else:
-                    st.error("O caminho do diretório não pode estar vazio. Por favor, especifique um local.")
+            else:
+                st.warning("Por favor, selecione um diretório para continuar.")
+
     except Exception as e:
         st.error(f"Ocorreu um erro ao ler o arquivo Excel: {e}. Verifique se o arquivo não está corrompido.")
 
