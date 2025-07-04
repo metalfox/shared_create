@@ -2,11 +2,12 @@
 """
 Sistema Web Avançado para Formatar e Criar Nomes de Pastas.
 
-Versão 5.6:
+Versão 5.7:
+- Corrigida a validação do caminho do diretório para remover automaticamente
+  aspas e espaços extra, resolvendo o erro "caminho não absoluto".
 - Removido o componente de navegador de ficheiros que não era intuitivo.
 - Reintroduzido o campo de texto para o caminho do diretório, mas com instruções
   visuais e um passo a passo claro para o utilizador.
-- Corrigida e melhorada a lógica de criação de pastas para maior fiabilidade.
 - Implementada a criação de subpastas por mês (ex: 06-Junho, 07-Julho) no diretório de destino.
 - Implementado o mapeamento automático e inteligente de colunas.
 - Adicionada sugestão de modelos com separadores (_ e -).
@@ -195,7 +196,6 @@ if uploaded_file:
             st.subheader("Opcional: Criar Pastas no seu Computador")
             st.info("As pastas serão criadas dentro de subpastas com o nome do mês (ex: 06-Junho, 07-Julho).")
             
-            # **NOVA FUNCIONALIDADE**: Instruções claras para copiar e colar o caminho
             with st.expander("Como selecionar o diretório de destino?", expanded=True):
                 st.markdown("""
                 1. No seu computador, abra o **Explorador de Ficheiros** e navegue até à pasta onde quer salvar.
@@ -208,11 +208,13 @@ if uploaded_file:
             caminho_diretorio = st.text_input("Cole aqui o caminho completo do diretório de destino:")
             
             if caminho_diretorio:
-                st.success(f"Diretório de destino definido: `{caminho_diretorio}`")
+                # **CORREÇÃO**: Limpa o caminho de aspas e espaços antes de validar
+                caminho_limpo = caminho_diretorio.strip().strip('"').strip("'")
+                
+                st.success(f"Diretório de destino definido: `{caminho_limpo}`")
                 if st.button("🚀 Criar Pastas no Diretório Definido"):
                     try:
-                        # Validação extra para garantir que o caminho é válido
-                        if not os.path.isabs(caminho_diretorio):
+                        if not os.path.isabs(caminho_limpo):
                              st.error("O caminho fornecido não parece ser um caminho absoluto válido. Por favor, verifique.")
                         else:
                             meses = {
@@ -222,7 +224,7 @@ if uploaded_file:
                             }
                             pastas_criadas = 0
                             erros_criacao = []
-                            with st.spinner(f"Criando pastas em '{caminho_diretorio}'..."):
+                            with st.spinner(f"Criando pastas em '{caminho_limpo}'..."):
                                 for nome_pasta, data_inicio_obj in st.session_state['items_gerados']:
                                     try:
                                         if data_inicio_obj is None:
@@ -231,7 +233,7 @@ if uploaded_file:
                                         
                                         mes_numero = data_inicio_obj.month
                                         nome_mes = meses.get(mes_numero, "Mes_Desconhecido")
-                                        diretorio_mes = os.path.join(caminho_diretorio, nome_mes)
+                                        diretorio_mes = os.path.join(caminho_limpo, nome_mes)
                                         
                                         nome_pasta_sanitizado = re.sub(r'[<>:"/\\|?*]', '', nome_pasta)
                                         caminho_completo = os.path.join(diretorio_mes, nome_pasta_sanitizado)
