@@ -1,4 +1,4 @@
 streamlit
 pandas
 openpyxl
-streamlit-folder-browser
+streamlit-file-browser
