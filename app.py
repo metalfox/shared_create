@@ -2,7 +2,9 @@
 """
 Sistema Web Avançado para Formatar e Criar Nomes de Pastas.
 
-Versão 5.3:
+Versão 5.5:
+- Corrigido o erro 'missing 1 required positional argument: 'path'' na chamada da biblioteca
+  streamlit-file-browser, definindo um diretório inicial.
 - Substituída a biblioteca de navegador de ficheiros por uma alternativa funcional ('streamlit-file-browser').
 - Adicionado um navegador de ficheiros visual para selecionar o diretório de destino.
 - Corrigida e melhorada a lógica de criação de pastas para maior fiabilidade.
@@ -195,8 +197,10 @@ if uploaded_file:
             st.subheader("Opcional: Criar Pastas no seu Computador")
             st.info("As pastas serão criadas dentro de subpastas com o nome do mês (ex: 06-Junho, 07-Julho).")
             
-            # **NOVA FUNCIONALIDADE**: Navegador de ficheiros visual
-            caminho_diretorio = st_file_browser(label="Selecione o diretório de destino", key='folder_browser')
+            # **CORREÇÃO**: Adicionado o argumento obrigatório 'path'.
+            st.write("Selecione o diretório de destino:")
+            start_path = os.path.expanduser('~') # Começa a navegar a partir do diretório 'home' do utilizador
+            caminho_diretorio = st_file_browser(start_path, key='folder_browser')
             
             if caminho_diretorio:
                 st.success(f"Diretório selecionado: `{caminho_diretorio}`")
