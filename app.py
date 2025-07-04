@@ -2,9 +2,9 @@
 """
 Sistema Web Avançado para Formatar e Criar Nomes de Pastas.
 
-Versão 5.2:
-- Adicionado um navegador de ficheiros visual para selecionar o diretório de destino,
-  substituindo o campo de texto manual.
+Versão 5.3:
+- Substituída a biblioteca de navegador de ficheiros por uma alternativa funcional ('streamlit-file-browser').
+- Adicionado um navegador de ficheiros visual para selecionar o diretório de destino.
 - Corrigida e melhorada a lógica de criação de pastas para maior fiabilidade.
 - Implementada a criação de subpastas por mês (ex: 06-Junho, 07-Julho) no diretório de destino.
 - Implementado o mapeamento automático e inteligente de colunas.
@@ -14,7 +14,7 @@ Versão 5.2:
 Como executar:
 1. Salve este ficheiro como `app.py`.
 2. Instale as bibliotecas necessárias (incluindo o novo navegador de ficheiros):
-   pip install streamlit pandas openpyxl streamlit-folder-browser
+   pip install streamlit pandas openpyxl streamlit-file-browser
 3. No terminal, execute o comando:
    streamlit run app.py
 """
@@ -22,7 +22,7 @@ import streamlit as st
 import pandas as pd
 import os
 import re
-from st_folder_browser import st_folder_browser # Importa o novo componente
+from streamlit_file_browser import st_file_browser # Importa o novo componente
 
 # --- Funções de Lógica ---
 
@@ -196,7 +196,7 @@ if uploaded_file:
             st.info("As pastas serão criadas dentro de subpastas com o nome do mês (ex: 06-Junho, 07-Julho).")
             
             # **NOVA FUNCIONALIDADE**: Navegador de ficheiros visual
-            caminho_diretorio = st_folder_browser("Selecione o diretório de destino")
+            caminho_diretorio = st_file_browser(label="Selecione o diretório de destino", key='folder_browser')
             
             if caminho_diretorio:
                 st.success(f"Diretório selecionado: `{caminho_diretorio}`")
