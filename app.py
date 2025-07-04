@@ -2,13 +2,12 @@
 """
 Sistema Web Avançado para Formatar e Criar Nomes de Pastas.
 
-Versão 5.8:
+Versão 5.9:
+- Adicionada verificação explícita de permissão de escrita no diretório de destino.
+- Melhorada a lógica de criação de pastas para ser mais robusta e dar feedback detalhado.
+- Adicionadas mensagens de erro específicas para problemas de permissão em servidores.
 - Substituída a validação de caminho padrão por uma função mais robusta,
   específica para Windows Server e caminhos de rede (UNC).
-- Adicionadas mensagens de erro detalhadas para problemas de permissão,
-  comuns em ambientes de servidor.
-- Corrigida a validação do caminho do diretório para remover automaticamente
-  aspas e espaços extra.
 - Implementada a criação de subpastas por mês (ex: 06-Junho, 07-Julho).
 - Implementado o mapeamento automático e inteligente de colunas.
 
@@ -225,10 +224,18 @@ if uploaded_file:
                 st.success(f"Diretório de destino definido: `{caminho_limpo}`")
                 if st.button("🚀 Criar Pastas no Diretório Definido"):
                     try:
-                        # **NOVA VALIDAÇÃO**
                         if not is_windows_abs_path(caminho_limpo):
                              st.error("O caminho fornecido não parece ser um caminho absoluto válido para Windows. Verifique se começa com uma letra de unidade (ex: C:\\) ou é um caminho de rede (ex: \\\\servidor\\pasta).")
                         else:
+                            # **NOVA VALIDAÇÃO DE PERMISSÃO**
+                            # Tenta criar o diretório base para verificar se existe e se temos permissão
+                            st.write(f"Verificando o diretório base: `{caminho_limpo}`...")
+                            os.makedirs(caminho_limpo, exist_ok=True)
+                            
+                            if not os.access(caminho_limpo, os.W_OK):
+                                raise PermissionError("Sem permissão de escrita.")
+
+                            st.write("Verificação de permissão bem-sucedida. A criar pastas...")
                             meses = {
                                 1: "01-Janeiro", 2: "02-Fevereiro", 3: "03-Março", 4: "04-Abril",
                                 5: "05-Maio", 6: "06-Junho", 7: "07-Julho", 8: "08-Agosto",
@@ -258,11 +265,11 @@ if uploaded_file:
                             if erros_criacao:
                                 st.error("Alguns erros ocorreram durante a criação:")
                                 st.json(erros_criacao)
-                    # **NOVAS MENSAGENS DE ERRO**
+
                     except PermissionError:
-                        st.error(f"**Erro de Permissão!** O script não tem permissão para criar pastas no diretório '{caminho_limpo}'. Por favor, verifique as permissões da pasta ou tente executar o script como administrador.")
+                        st.error(f"**Erro de Permissão!** O script não tem permissão para criar pastas no diretório '{caminho_limpo}'. Por favor, verifique as permissões da pasta para o utilizador que está a executar o script, ou tente executar como administrador.")
                     except FileNotFoundError:
-                        st.error(f"**Caminho não encontrado!** O diretório base '{caminho_limpo}' não existe. Por favor, verifique se o caminho está correto.")
+                        st.error(f"**Caminho não encontrado!** O diretório base '{caminho_limpo}' não existe ou não é acessível. Por favor, verifique se o caminho está correto.")
                     except Exception as e:
                         st.error(f"Ocorreu um erro inesperado: {e}")
 
