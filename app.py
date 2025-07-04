@@ -2,13 +2,13 @@
 """
 Sistema Web Avançado para Formatar e Criar Nomes de Pastas.
 
-Versão 4.0:
+Versão 5.0:
+- Implementado o mapeamento automático e inteligente de colunas. O sistema tenta
+  adivinhar as colunas corretas após o upload da planilha.
 - Adicionada sugestão de modelos com separadores (_ e -).
 - Implementada ordenação automática dos dados por data crescente antes da geração.
 - Adicionada verificação e criação do diretório base (pai) caso ele não exista.
 - Interface do usuário totalmente traduzida para o português brasileiro.
-- Corrigido o erro 'KeyError' que ocorria quando um campo não era mapeado pelo usuário.
-- Adicionada limpeza automática de separadores duplicados ou finais.
 
 Como executar:
 1. Salve este arquivo como `app.py`.
@@ -23,6 +23,40 @@ import os
 import re
 
 # --- Funções de Lógica ---
+
+def guess_mappings(columns):
+    """
+    Tenta adivinhar o mapeamento das colunas com base em nomes e palavras-chave comuns.
+    Retorna um dicionário com os nomes das colunas adivinhadas.
+    """
+    # Dicionário de palavras-chave para cada campo que queremos mapear
+    mapping_keywords = {
+        'data_inicio': ['data início', 'datainicio', 'data_inicio', 'start date', 'inicio', 'começo'],
+        'data_fim': ['data fim', 'datafim', 'data_fim', 'end date', 'fim', 'término', 'termino'],
+        'condutor': ['condutor', 'motorista', 'driver', 'nome', 'operador'],
+        'cpf': ['cpf'],
+        'maquina': ['maquina', 'máquina', 'equipamento', 'equipment', 'veiculo', 'viatura']
+    }
+    
+    guessed_map = {}
+    
+    # Normaliza os nomes das colunas para uma comparação mais flexível
+    normalized_columns = {col: re.sub(r'[^a-z0-9]', '', col.lower()) for col in columns}
+    
+    for map_key, keywords in mapping_keywords.items():
+        found = False
+        for col, normalized_col in normalized_columns.items():
+            for keyword in keywords:
+                # Normaliza a palavra-chave
+                normalized_keyword = re.sub(r'[^a-z0-9]', '', keyword.lower())
+                if normalized_keyword in normalized_col:
+                    guessed_map[map_key] = col
+                    found = True
+                    break
+            if found:
+                break
+    
+    return guessed_map
 
 def processar_dados(df, mapeamento, template):
     """
@@ -101,18 +135,26 @@ if uploaded_file:
         # --- Passo 2: Mapeamento e Modelo ---
         st.header("Passo 2: Configure a Conversão")
         
+        # **NOVA FUNCIONALIDADE**: Tenta adivinhar o mapeamento
+        guessed_map = guess_mappings(df.columns)
+        st.info("O sistema tentou adivinhar o mapeamento das colunas abaixo. Por favor, verifique se está correto.")
+        
         col1, col2 = st.columns(2)
 
         with col1:
             with st.expander("Mapeamento de Colunas", expanded=True):
-                st.info("Associe os campos do sistema às colunas da sua planilha. Deixe como 'N/A' se não quiser usar um campo.")
-                mapeamento = {
-                    'data_inicio': st.selectbox("Coluna para Data e Hora de Início (Obrigatório para Ordenação)", colunas_disponiveis, key='map_di'),
-                    'data_fim': st.selectbox("Coluna para Data e Hora de Fim", colunas_disponiveis, key='map_df'),
-                    'condutor': st.selectbox("Coluna para Nome do Condutor", colunas_disponiveis, key='map_c'),
-                    'cpf': st.selectbox("Coluna para CPF", colunas_disponiveis, key='map_cpf'),
-                    'maquina': st.selectbox("Coluna para Máquina/Equipamento", colunas_disponiveis, key='map_m'),
-                }
+                mapeamento = {}
+                
+                # Para cada selectbox, encontra o índice da coluna adivinhada para pré-selecioná-la
+                def get_col_index(key):
+                    col_name = guessed_map.get(key, 'N/A')
+                    return colunas_disponiveis.index(col_name) if col_name in colunas_disponiveis else 0
+
+                mapeamento['data_inicio'] = st.selectbox("Coluna para Data e Hora de Início (Obrigatório para Ordenação)", colunas_disponiveis, index=get_col_index('data_inicio'), key='map_di')
+                mapeamento['data_fim'] = st.selectbox("Coluna para Data e Hora de Fim", colunas_disponiveis, index=get_col_index('data_fim'), key='map_df')
+                mapeamento['condutor'] = st.selectbox("Coluna para Nome do Condutor", colunas_disponiveis, index=get_col_index('condutor'), key='map_c')
+                mapeamento['cpf'] = st.selectbox("Coluna para CPF", colunas_disponiveis, index=get_col_index('cpf'), key='map_cpf')
+                mapeamento['maquina'] = st.selectbox("Coluna para Máquina/Equipamento", colunas_disponiveis, index=get_col_index('maquina'), key='map_m')
         
         with col2:
             with st.expander("Modelo do Nome da Pasta", expanded=True):
@@ -140,7 +182,6 @@ if uploaded_file:
         if st.button("▶️ Gerar Nomes das Pastas"):
             if mapeamento['data_inicio'] != 'N/A':
                 try:
-                    # Ordena o dataframe pela data de início
                     df_ordenado = df.sort_values(by=mapeamento['data_inicio']).copy()
                     st.info("Os dados foram ordenados pela data de início em ordem crescente.")
                     nomes_gerados, erros = processar_dados(df_ordenado, mapeamento, template_usuario)
@@ -181,7 +222,6 @@ if uploaded_file:
             if st.button("🚀 Criar Pastas no Diretório Acima"):
                 if caminho_diretorio:
                     try:
-                        # Verifica se o diretório base existe. Se não, informa que será criado.
                         if not os.path.isdir(caminho_diretorio):
                             st.info(f"O diretório base '{caminho_diretorio}' não existe e será criado.")
                         
