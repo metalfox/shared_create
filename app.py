@@ -2,16 +2,15 @@
 """
 Sistema Web Avançado para Formatar e Criar Nomes de Pastas.
 
-Versão 5.7:
+Versão 5.8:
+- Substituída a validação de caminho padrão por uma função mais robusta,
+  específica para Windows Server e caminhos de rede (UNC).
+- Adicionadas mensagens de erro detalhadas para problemas de permissão,
+  comuns em ambientes de servidor.
 - Corrigida a validação do caminho do diretório para remover automaticamente
-  aspas e espaços extra, resolvendo o erro "caminho não absoluto".
-- Removido o componente de navegador de ficheiros que não era intuitivo.
-- Reintroduzido o campo de texto para o caminho do diretório, mas com instruções
-  visuais e um passo a passo claro para o utilizador.
-- Implementada a criação de subpastas por mês (ex: 06-Junho, 07-Julho) no diretório de destino.
+  aspas e espaços extra.
+- Implementada a criação de subpastas por mês (ex: 06-Junho, 07-Julho).
 - Implementado o mapeamento automático e inteligente de colunas.
-- Adicionada sugestão de modelos com separadores (_ e -).
-- Implementada ordenação automática dos dados por data crescente antes da geração.
 
 Como executar:
 1. Salve este ficheiro como `app.py`.
@@ -26,6 +25,19 @@ import os
 import re
 
 # --- Funções de Lógica ---
+
+def is_windows_abs_path(path):
+    """
+    Valida de forma mais robusta se um caminho é absoluto no Windows,
+    verificando por letras de unidade (C:\) ou caminhos de rede UNC (\\servidor).
+    Esta função é mais fiável em ambientes de servidor.
+    """
+    path = path.strip('"') # Remove aspas que podem vir do 'copiar como caminho'
+    if re.match(r'^[a-zA-Z]:[\\/]', path):
+        return True
+    if path.startswith('\\\\'):
+        return True
+    return False
 
 def guess_mappings(columns):
     """
@@ -208,14 +220,14 @@ if uploaded_file:
             caminho_diretorio = st.text_input("Cole aqui o caminho completo do diretório de destino:")
             
             if caminho_diretorio:
-                # **CORREÇÃO**: Limpa o caminho de aspas e espaços antes de validar
                 caminho_limpo = caminho_diretorio.strip().strip('"').strip("'")
                 
                 st.success(f"Diretório de destino definido: `{caminho_limpo}`")
                 if st.button("🚀 Criar Pastas no Diretório Definido"):
                     try:
-                        if not os.path.isabs(caminho_limpo):
-                             st.error("O caminho fornecido não parece ser um caminho absoluto válido. Por favor, verifique.")
+                        # **NOVA VALIDAÇÃO**
+                        if not is_windows_abs_path(caminho_limpo):
+                             st.error("O caminho fornecido não parece ser um caminho absoluto válido para Windows. Verifique se começa com uma letra de unidade (ex: C:\\) ou é um caminho de rede (ex: \\\\servidor\\pasta).")
                         else:
                             meses = {
                                 1: "01-Janeiro", 2: "02-Fevereiro", 3: "03-Março", 4: "04-Abril",
@@ -246,8 +258,13 @@ if uploaded_file:
                             if erros_criacao:
                                 st.error("Alguns erros ocorreram durante a criação:")
                                 st.json(erros_criacao)
+                    # **NOVAS MENSAGENS DE ERRO**
+                    except PermissionError:
+                        st.error(f"**Erro de Permissão!** O script não tem permissão para criar pastas no diretório '{caminho_limpo}'. Por favor, verifique as permissões da pasta ou tente executar o script como administrador.")
+                    except FileNotFoundError:
+                        st.error(f"**Caminho não encontrado!** O diretório base '{caminho_limpo}' não existe. Por favor, verifique se o caminho está correto.")
                     except Exception as e:
-                        st.error(f"Erro ao processar o caminho do diretório: {e}")
+                        st.error(f"Ocorreu um erro inesperado: {e}")
 
     except Exception as e:
         st.error(f"Ocorreu um erro ao ler o arquivo Excel: {e}. Verifique se o arquivo não está corrompido.")
