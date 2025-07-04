@@ -2,11 +2,10 @@
 """
 Sistema Web Avançado para Formatar e Criar Nomes de Pastas.
 
-Versão 5.5:
-- Corrigido o erro 'missing 1 required positional argument: 'path'' na chamada da biblioteca
-  streamlit-file-browser, definindo um diretório inicial.
-- Substituída a biblioteca de navegador de ficheiros por uma alternativa funcional ('streamlit-file-browser').
-- Adicionado um navegador de ficheiros visual para selecionar o diretório de destino.
+Versão 5.6:
+- Removido o componente de navegador de ficheiros que não era intuitivo.
+- Reintroduzido o campo de texto para o caminho do diretório, mas com instruções
+  visuais e um passo a passo claro para o utilizador.
 - Corrigida e melhorada a lógica de criação de pastas para maior fiabilidade.
 - Implementada a criação de subpastas por mês (ex: 06-Junho, 07-Julho) no diretório de destino.
 - Implementado o mapeamento automático e inteligente de colunas.
@@ -15,8 +14,8 @@ Versão 5.5:
 
 Como executar:
 1. Salve este ficheiro como `app.py`.
-2. Instale as bibliotecas necessárias (incluindo o novo navegador de ficheiros):
-   pip install streamlit pandas openpyxl streamlit-file-browser
+2. Instale as bibliotecas necessárias:
+   pip install streamlit pandas openpyxl
 3. No terminal, execute o comando:
    streamlit run app.py
 """
@@ -24,7 +23,6 @@ import streamlit as st
 import pandas as pd
 import os
 import re
-from streamlit_file_browser import st_file_browser # Importa o novo componente
 
 # --- Funções de Lógica ---
 
@@ -197,48 +195,57 @@ if uploaded_file:
             st.subheader("Opcional: Criar Pastas no seu Computador")
             st.info("As pastas serão criadas dentro de subpastas com o nome do mês (ex: 06-Junho, 07-Julho).")
             
-            # **CORREÇÃO**: Adicionado o argumento obrigatório 'path'.
-            st.write("Selecione o diretório de destino:")
-            start_path = os.path.expanduser('~') # Começa a navegar a partir do diretório 'home' do utilizador
-            caminho_diretorio = st_file_browser(start_path, key='folder_browser')
+            # **NOVA FUNCIONALIDADE**: Instruções claras para copiar e colar o caminho
+            with st.expander("Como selecionar o diretório de destino?", expanded=True):
+                st.markdown("""
+                1. No seu computador, abra o **Explorador de Ficheiros** e navegue até à pasta onde quer salvar.
+                2. Clique na barra de endereço na parte de cima da janela.
+                3. O caminho completo será selecionado (ex: `C:\\Utilizadores\\SeuNome\\Documentos`).
+                4. Copie o caminho (**Ctrl+C**).
+                5. Cole o caminho no campo abaixo (**Ctrl+V**).
+                """)
+            
+            caminho_diretorio = st.text_input("Cole aqui o caminho completo do diretório de destino:")
             
             if caminho_diretorio:
-                st.success(f"Diretório selecionado: `{caminho_diretorio}`")
-                if st.button("🚀 Criar Pastas no Diretório Selecionado"):
+                st.success(f"Diretório de destino definido: `{caminho_diretorio}`")
+                if st.button("🚀 Criar Pastas no Diretório Definido"):
                     try:
-                        meses = {
-                            1: "01-Janeiro", 2: "02-Fevereiro", 3: "03-Março", 4: "04-Abril",
-                            5: "05-Maio", 6: "06-Junho", 7: "07-Julho", 8: "08-Agosto",
-                            9: "09-Setembro", 10: "10-Outubro", 11: "11-Novembro", 12: "12-Dezembro"
-                        }
-                        pastas_criadas = 0
-                        erros_criacao = []
-                        with st.spinner(f"Criando pastas em '{caminho_diretorio}'..."):
-                            for nome_pasta, data_inicio_obj in st.session_state['items_gerados']:
-                                try:
-                                    if data_inicio_obj is None:
-                                        erros_criacao.append(f"Não foi possível criar '{nome_pasta}': Data de início não fornecida para determinar o mês.")
-                                        continue
-                                    
-                                    mes_numero = data_inicio_obj.month
-                                    nome_mes = meses.get(mes_numero, "Mes_Desconhecido")
-                                    diretorio_mes = os.path.join(caminho_diretorio, nome_mes)
-                                    
-                                    nome_pasta_sanitizado = re.sub(r'[<>:"/\\|?*]', '', nome_pasta)
-                                    caminho_completo = os.path.join(diretorio_mes, nome_pasta_sanitizado)
-                                    os.makedirs(caminho_completo, exist_ok=True)
-                                    pastas_criadas += 1
-                                except Exception as e:
-                                    erros_criacao.append(f"Falha ao criar '{nome_pasta}': {e}")
-                        
-                        st.success(f"Operação concluída! {pastas_criadas} pastas foram criadas/verificadas com sucesso.")
-                        if erros_criacao:
-                            st.error("Alguns erros ocorreram durante a criação:")
-                            st.json(erros_criacao)
+                        # Validação extra para garantir que o caminho é válido
+                        if not os.path.isabs(caminho_diretorio):
+                             st.error("O caminho fornecido não parece ser um caminho absoluto válido. Por favor, verifique.")
+                        else:
+                            meses = {
+                                1: "01-Janeiro", 2: "02-Fevereiro", 3: "03-Março", 4: "04-Abril",
+                                5: "05-Maio", 6: "06-Junho", 7: "07-Julho", 8: "08-Agosto",
+                                9: "09-Setembro", 10: "10-Outubro", 11: "11-Novembro", 12: "12-Dezembro"
+                            }
+                            pastas_criadas = 0
+                            erros_criacao = []
+                            with st.spinner(f"Criando pastas em '{caminho_diretorio}'..."):
+                                for nome_pasta, data_inicio_obj in st.session_state['items_gerados']:
+                                    try:
+                                        if data_inicio_obj is None:
+                                            erros_criacao.append(f"Não foi possível criar '{nome_pasta}': Data de início não fornecida para determinar o mês.")
+                                            continue
+                                        
+                                        mes_numero = data_inicio_obj.month
+                                        nome_mes = meses.get(mes_numero, "Mes_Desconhecido")
+                                        diretorio_mes = os.path.join(caminho_diretorio, nome_mes)
+                                        
+                                        nome_pasta_sanitizado = re.sub(r'[<>:"/\\|?*]', '', nome_pasta)
+                                        caminho_completo = os.path.join(diretorio_mes, nome_pasta_sanitizado)
+                                        os.makedirs(caminho_completo, exist_ok=True)
+                                        pastas_criadas += 1
+                                    except Exception as e:
+                                        erros_criacao.append(f"Falha ao criar '{nome_pasta}': {e}")
+                            
+                            st.success(f"Operação concluída! {pastas_criadas} pastas foram criadas/verificadas com sucesso.")
+                            if erros_criacao:
+                                st.error("Alguns erros ocorreram durante a criação:")
+                                st.json(erros_criacao)
                     except Exception as e:
                         st.error(f"Erro ao processar o caminho do diretório: {e}")
-            else:
-                st.warning("Por favor, selecione um diretório para continuar.")
 
     except Exception as e:
         st.error(f"Ocorreu um erro ao ler o arquivo Excel: {e}. Verifique se o arquivo não está corrompido.")
