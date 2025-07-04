@@ -2,12 +2,12 @@
 """
 Sistema Web Avançado para Formatar e Criar Nomes de Pastas.
 
-Versão 5.9:
-- Adicionada verificação explícita de permissão de escrita no diretório de destino.
-- Melhorada a lógica de criação de pastas para ser mais robusta e dar feedback detalhado.
-- Adicionadas mensagens de erro específicas para problemas de permissão em servidores.
-- Substituída a validação de caminho padrão por uma função mais robusta,
-  específica para Windows Server e caminhos de rede (UNC).
+Versão 6.0:
+- Refatorada a lógica de criação de pastas para ser mais robusta e fornecer feedback detalhado.
+- Adicionada verificação de permissão de escrita mais fiável, baseada na tentativa de criação.
+- Adicionado feedback em tempo real durante a criação das pastas.
+- Corrigida a validação do caminho do diretório para remover automaticamente
+  aspas e espaços extra.
 - Implementada a criação de subpastas por mês (ex: 06-Junho, 07-Julho).
 - Implementado o mapeamento automático e inteligente de colunas.
 
@@ -223,19 +223,17 @@ if uploaded_file:
                 
                 st.success(f"Diretório de destino definido: `{caminho_limpo}`")
                 if st.button("🚀 Criar Pastas no Diretório Definido"):
+                    # Placeholder para o feedback em tempo real
+                    feedback_placeholder = st.empty()
+                    
                     try:
                         if not is_windows_abs_path(caminho_limpo):
-                             st.error("O caminho fornecido não parece ser um caminho absoluto válido para Windows. Verifique se começa com uma letra de unidade (ex: C:\\) ou é um caminho de rede (ex: \\\\servidor\\pasta).")
+                             feedback_placeholder.error("O caminho fornecido não parece ser um caminho absoluto válido para Windows. Verifique se começa com uma letra de unidade (ex: C:\\) ou é um caminho de rede (ex: \\\\servidor\\pasta).")
                         else:
-                            # **NOVA VALIDAÇÃO DE PERMISSÃO**
-                            # Tenta criar o diretório base para verificar se existe e se temos permissão
-                            st.write(f"Verificando o diretório base: `{caminho_limpo}`...")
+                            # Tenta criar o diretório base para verificar as permissões
+                            feedback_placeholder.info(f"A verificar permissões e a criar o diretório base `{caminho_limpo}` se não existir...")
                             os.makedirs(caminho_limpo, exist_ok=True)
                             
-                            if not os.access(caminho_limpo, os.W_OK):
-                                raise PermissionError("Sem permissão de escrita.")
-
-                            st.write("Verificação de permissão bem-sucedida. A criar pastas...")
                             meses = {
                                 1: "01-Janeiro", 2: "02-Fevereiro", 3: "03-Março", 4: "04-Abril",
                                 5: "05-Maio", 6: "06-Junho", 7: "07-Julho", 8: "08-Agosto",
@@ -243,35 +241,45 @@ if uploaded_file:
                             }
                             pastas_criadas = 0
                             erros_criacao = []
-                            with st.spinner(f"Criando pastas em '{caminho_limpo}'..."):
-                                for nome_pasta, data_inicio_obj in st.session_state['items_gerados']:
-                                    try:
-                                        if data_inicio_obj is None:
-                                            erros_criacao.append(f"Não foi possível criar '{nome_pasta}': Data de início não fornecida para determinar o mês.")
-                                            continue
-                                        
-                                        mes_numero = data_inicio_obj.month
-                                        nome_mes = meses.get(mes_numero, "Mes_Desconhecido")
-                                        diretorio_mes = os.path.join(caminho_limpo, nome_mes)
-                                        
-                                        nome_pasta_sanitizado = re.sub(r'[<>:"/\\|?*]', '', nome_pasta)
-                                        caminho_completo = os.path.join(diretorio_mes, nome_pasta_sanitizado)
-                                        os.makedirs(caminho_completo, exist_ok=True)
-                                        pastas_criadas += 1
-                                    except Exception as e:
-                                        erros_criacao.append(f"Falha ao criar '{nome_pasta}': {e}")
                             
-                            st.success(f"Operação concluída! {pastas_criadas} pastas foram criadas/verificadas com sucesso.")
+                            # Área para mostrar o log de criação
+                            log_area = st.container()
+                            log_area.write("**Log de Criação:**")
+
+                            for nome_pasta, data_inicio_obj in st.session_state['items_gerados']:
+                                try:
+                                    if data_inicio_obj is None:
+                                        erros_criacao.append(f"Ignorado '{nome_pasta}': Data de início não fornecida.")
+                                        continue
+                                    
+                                    mes_numero = data_inicio_obj.month
+                                    nome_mes = meses.get(mes_numero, "Mes_Desconhecido")
+                                    diretorio_mes = os.path.join(caminho_limpo, nome_mes)
+                                    
+                                    nome_pasta_sanitizado = re.sub(r'[<>:"/\\|?*]', '', nome_pasta)
+                                    caminho_completo = os.path.join(diretorio_mes, nome_pasta_sanitizado)
+                                    
+                                    os.makedirs(caminho_completo, exist_ok=True)
+                                    log_area.write(f"✔️ Criada: `{caminho_completo}`")
+                                    pastas_criadas += 1
+                                except PermissionError:
+                                    erros_criacao.append(f"Falha ao criar '{caminho_completo}': Erro de Permissão.")
+                                    # Para o processo se encontrar um erro de permissão
+                                    raise 
+                                except Exception as e:
+                                    erros_criacao.append(f"Falha ao criar '{nome_pasta}': {e}")
+                            
+                            feedback_placeholder.success(f"Operação concluída! {pastas_criadas} pastas foram criadas/verificadas com sucesso.")
                             if erros_criacao:
-                                st.error("Alguns erros ocorreram durante a criação:")
+                                st.warning("Alguns itens foram ignorados ou falharam durante a criação:")
                                 st.json(erros_criacao)
 
                     except PermissionError:
-                        st.error(f"**Erro de Permissão!** O script não tem permissão para criar pastas no diretório '{caminho_limpo}'. Por favor, verifique as permissões da pasta para o utilizador que está a executar o script, ou tente executar como administrador.")
+                        feedback_placeholder.error(f"**Erro de Permissão!** O script não tem permissão para criar pastas no diretório '{caminho_limpo}'. Por favor, verifique as permissões da pasta para o utilizador que está a executar o script, ou tente executar como administrador.")
                     except FileNotFoundError:
-                        st.error(f"**Caminho não encontrado!** O diretório base '{caminho_limpo}' não existe ou não é acessível. Por favor, verifique se o caminho está correto.")
+                        feedback_placeholder.error(f"**Caminho não encontrado!** O diretório base '{caminho_limpo}' não existe ou não é acessível. Por favor, verifique se o caminho está correto.")
                     except Exception as e:
-                        st.error(f"Ocorreu um erro inesperado: {e}")
+                        feedback_placeholder.error(f"Ocorreu um erro inesperado: {e}")
 
     except Exception as e:
         st.error(f"Ocorreu um erro ao ler o arquivo Excel: {e}. Verifique se o arquivo não está corrompido.")
